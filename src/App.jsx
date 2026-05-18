@@ -434,12 +434,10 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
         .map(m => ({ role: m.role, content: m.content }));
 
       // ✅ /api/v1/messages → proxied by Vite to https://api.anthropic.com/v1/messages
-      const res = await fetch("/api/v1/messages", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-request-allow-browser": "true",
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
