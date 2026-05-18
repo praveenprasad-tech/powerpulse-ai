@@ -4,7 +4,6 @@ import {
   PieChart, Pie, Cell, LineChart, Line
 } from "recharts";
 
-// ─── Constants ───────────────────────────────────────────────────────────────
 const COLORS = ["#00f0ff", "#ff6b35", "#a3ff70", "#ffd166", "#ff4fcf", "#b388ff", "#00e676"];
 const BLDC_MAP = { "Fan": 28, "Exhaust Fan": 22, "Cooler": 180, "AC": 1200 };
 const STD_MAP  = { "Fan": 75, "Exhaust Fan": 60, "Cooler": 250, "AC": 1500 };
@@ -29,12 +28,10 @@ const PRESET_DEVICES = [
   { label: "Laptop", power: 65, hours: 8 },
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2, 8);
 const kwhDay = (w, h) => (w * h) / 1000;
 const fmt2 = (n) => Number(n).toFixed(2);
 
-// ─── Shared Styles ────────────────────────────────────────────────────────────
 const inputStyle = {
   background: "rgba(0,240,255,0.05)", border: "1px solid rgba(0,240,255,0.18)",
   borderRadius: 8, padding: "10px 14px", color: "#ddeeff",
@@ -64,7 +61,6 @@ const bldcBadge = {
   fontSize: 10, fontWeight: 700, marginLeft: 6,
 };
 
-// ─── Global CSS ───────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap');
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -79,7 +75,6 @@ const GLOBAL_CSS = `
   .csv-drop-zone.drag-over { border-color: #00f0ff !important; background: rgba(0,240,255,0.12) !important; transform: scale(1.01); }
 `;
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
 function Spinner({ size = 16 }) {
   return (
     <span style={{
@@ -118,7 +113,6 @@ function StatCard({ label, value, sub, color = "#00f0ff", icon }) {
   );
 }
 
-// ─── CSV Drop Zone ────────────────────────────────────────────────────────────
 function CsvDropZone({ onFile, csvError }) {
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -183,7 +177,6 @@ function CsvDropZone({ onFile, csvError }) {
   );
 }
 
-// ─── Onboarding ───────────────────────────────────────────────────────────────
 function Onboarding({ onComplete }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -326,7 +319,6 @@ function Onboarding({ onComplete }) {
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
 function Dashboard({ profile, onReset }) {
   const { name, city, state, rate } = profile;
   const [devices, setDevices] = useState(profile.devices || []);
@@ -396,7 +388,7 @@ function Dashboard({ profile, onReset }) {
     reader.readAsText(file);
   };
 
-  // ── AI — uses /api proxy to fix CORS on localhost ────────────────────────────
+  // ── AI — Gemini API via Vercel serverless function ──────────────────────────
   const askAI = async () => {
     if (!query.trim() || aiLoading) return;
     const userMsg = query.trim();
@@ -426,25 +418,23 @@ SUMMARY:
 
 ABOUT ATOMBERG: They make BLDC fans and appliances that save up to 65% energy vs standard motors. A standard fan uses 75W; an Atomberg BLDC fan uses only 28W.
 
-INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use specific numbers from the data above. Be friendly. Use emojis sparingly.`;
+INSTRUCTIONS: Respond in clear English only. Be concise (3-5 sentences). Use specific numbers from the data above. Be friendly. Use emojis sparingly.`;
+
+    const contents = [
+      { role: "user", parts: [{ text: systemPrompt }] },
+      { role: "model", parts: [{ text: "Understood! I am PowerPulse AI, ready to help with energy monitoring and savings advice." }] },
+      ...messages.slice(-6).map(m => ({
+        role: m.role === "user" ? "user" : "model",
+        parts: [{ text: m.content }]
+      })),
+      { role: "user", parts: [{ text: userMsg }] },
+    ];
 
     try {
-      const history = messages
-        .filter(m => m.role !== "system")
-        .map(m => ({ role: m.role, content: m.content }));
-
-      // ✅ /api/v1/messages → proxied by Vite to https://api.anthropic.com/v1/messages
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: [...history, { role: "user", content: userMsg }],
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents }),
       });
 
       if (!res.ok) {
@@ -453,12 +443,12 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
       }
 
       const json = await res.json();
-      const reply = json.content?.[0]?.text || "Sorry, something went wrong. Please try again.";
+      const reply = json.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, something went wrong. Please try again.";
       setMessages(prev => [...prev, { role: "assistant", content: reply }]);
     } catch (err) {
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: `⚠️ ${err.message || "Unable to connect. Check your API key in vite.config.js."}`,
+        content: `⚠️ ${err.message || "Unable to connect. Please try again."}`,
       }]);
     }
     setAiLoading(false);
@@ -485,7 +475,6 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
       <div style={{ position:"fixed",top:-80,right:-80,width:360,height:360,background:"radial-gradient(circle,#00f0ff10,transparent 70%)",pointerEvents:"none",zIndex:0 }} />
       <div style={{ position:"fixed",bottom:-100,left:-80,width:420,height:420,background:"radial-gradient(circle,#b388ff0c,transparent 70%)",pointerEvents:"none",zIndex:0 }} />
 
-      {/* Header */}
       <div style={{ padding:"20px 28px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid rgba(0,240,255,0.08)", flexWrap:"wrap", gap:12, position:"relative", zIndex:1 }}>
         <div>
           <div style={{ fontFamily:"'Orbitron',monospace", fontSize:22, fontWeight:900, background:"linear-gradient(90deg,#00f0ff,#b388ff)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>⚡ PowerPulse AI</div>
@@ -504,7 +493,6 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
         </div>
       </div>
 
-      {/* Stat Cards */}
       <div style={{ padding:"20px 28px 0", display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:14, position:"relative", zIndex:1 }}>
         <StatCard label="Daily Usage"   value={`${fmt2(totalDailyKwh)}`}       sub="kWh / day"                    color="#00f0ff" icon="📈" />
         <StatCard label="Monthly Bill"  value={`₹${Math.round(monthlyBill)}`}   sub={`${fmt2(totalMonthlyKwh)} kWh/month`} color="#ffd166" icon="💰" />
@@ -513,7 +501,6 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
         <StatCard label="Peak Load"     value={`${totalWatts}W`}                sub="simultaneous draw"            color="#ff6b35" icon="⚡" />
       </div>
 
-      {/* Tabs */}
       <div style={{ padding:"24px 28px 0", position:"relative", zIndex:1 }}>
         <div style={{ display:"flex", gap:2, borderBottom:"1px solid rgba(0,240,255,0.1)", flexWrap:"wrap" }}>
           {TABS.map(t => (
@@ -529,10 +516,8 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
         </div>
       </div>
 
-      {/* Tab Content */}
       <div style={{ padding:"24px 28px 48px", position:"relative", zIndex:1 }}>
 
-        {/* DASHBOARD */}
         {activeTab === "dashboard" && (
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))", gap:20 }}>
             <div style={cardStyle}>
@@ -601,7 +586,6 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
           </div>
         )}
 
-        {/* DEVICES */}
         {activeTab === "devices" && (
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))", gap:20 }}>
             <div style={cardStyle}>
@@ -655,11 +639,10 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
           </div>
         )}
 
-        {/* AI ASSISTANT */}
         {activeTab === "ai" && (
           <div style={{ maxWidth:740 }}>
             <div style={cardStyle}>
-              <div style={sectionTitle}>AI Energy Assistant — Powered by Claude</div>
+              <div style={sectionTitle}>AI Energy Assistant — Powered by Gemini</div>
               <div style={{ height:360, overflowY:"auto", display:"flex", flexDirection:"column", gap:14, marginBottom:16, paddingRight:4 }}>
                 {messages.map((m,i) => (
                   <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:m.role==="user"?"flex-end":"flex-start", animation:"fadeIn 0.3s ease" }}>
@@ -710,7 +693,6 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
           </div>
         )}
 
-        {/* BLDC SAVINGS */}
         {activeTab === "bldc" && (
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))", gap:20 }}>
             <div style={cardStyle}>
@@ -784,7 +766,6 @@ INSTRUCTIONS: Respond in clear English only. Be concise (3–5 sentences). Use s
   );
 }
 
-// ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [profile, setProfile] = useState(null);
   if (!profile) return <Onboarding onComplete={setProfile} />;
